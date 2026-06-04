@@ -18,7 +18,7 @@ class SlotController extends Controller
     }
 
     public function index(Request $request) {
-        $slots = Cache::remember('all_slots_cache', 60, function () {
+        $slots = Cache::remember('all_slots_cache', 300, function () {
             return Slot::all()->toArray();
         });
 

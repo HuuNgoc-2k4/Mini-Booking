@@ -5,6 +5,7 @@
 .env.production
 .phpactor.json
 .phpunit.result.cache
+repomix-output.md
 /.codex
 /.cursor/
 /.idea
