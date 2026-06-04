@@ -25,8 +25,8 @@ class BookingService {
 
             $finalPrice = max(0, $slot->price - $discountAmount);
 
-            if ($user->balance < $slot->price) {
-                throw new Exception('Số dư không đủ.');
+            if ($user->balance < $finalPrice) {
+                throw new Exception('Số dư không đủ để thanh toán suất này.');
             }
 
             $user->decrement('balance', $finalPrice);

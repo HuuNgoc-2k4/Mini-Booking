@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Slot;
 use App\Services\BookingService;
+use App\Events\BookingSuccessful;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -38,8 +39,9 @@ class SlotController extends Controller
         }
 
         try {
-            $this->bookingService->handleBooking(auth()->id(), $slotId);
+            $booking = $this->bookingService->handleBooking(auth()->id(), $slotId);
 
+            event(new BookingSuccessful($booking));
             Cache::forget('all_slots_cache');
 
             return redirect()->route('slots.index')->with('success', 'Đặt vé thành công');

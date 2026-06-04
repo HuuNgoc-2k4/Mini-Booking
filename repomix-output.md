@@ -37,6 +37,8 @@ The content is organized as follows:
 # Directory Structure
 ```
 app/
+  Events/
+    BookingSuccessful.php
   Http/
     Controllers/
       Auth/
@@ -58,6 +60,8 @@ app/
       Auth/
         LoginRequest.php
       ProfileUpdateRequest.php
+  Listeners/
+    SendBookingEmail.php
   Models/
     Booking.php
     Slot.php
@@ -126,6 +130,105 @@ routes/
 ```
 
 # Files
+
+## File: app/Events/BookingSuccessful.php
+```php
+<?php
+
+namespace App\Events;
+
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PresenceChannel;
+use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+use App\Models\Booking;
+
+class BookingSuccessful
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    /**
+     * Create a new event instance.
+     */
+    public $booking;
+    public function __construct(Booking $booking)
+    {
+        $this->booking = $booking;
+    }
+
+    /**
+     * Get the channels the event should broadcast on.
+     *
+     * @return array<int, Channel>
+     */
+    public function broadcastOn(): array
+    {
+        return [
+            new PrivateChannel('channel-name'),
+        ];
+    }
+}
+```
+
+## File: app/Listeners/SendBookingEmail.php
+```php
+<?php
+
+namespace App\Listeners;
+
+use App\Events\BookingSuccessful;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Log;
+use Exception;
+
+class SendBookingEmail
+{
+    use InteractsWithQueue;
+    /**
+     * Create the event listener.
+     */
+    public function __construct()
+    {
+        //
+    }
+
+    /**
+     * Handle the event.
+     */
+    public function handle(BookingSuccessful $event): void
+    {
+        try {
+            $booking = $event->booking;
+
+            // Giả sử đã gửi được email thành công
+
+            // Ghi nhận log chi tiết hóa đơn
+            Log::info("Đã gửi email xác nhận thành công");
+            Log::info("Booking ID: " . $booking->id);
+            Log::info("User ID : " . $booking->user_id);
+            Log::info("Slot ID: " . $booking->slot_id);
+            Log::info("Status  : " . strtoupper($booking->status ?? 'confirmed'));
+            Log::info("Thời gian gửi: " . now()->toDateTimeString());
+
+
+        } catch (Exception $e) {
+            // Ghi log cảnh báo nếu có lỗi
+            Log::error("Queue error: " . $e->getMessage());
+
+            throw $e;
+        }
+    }
+    public function failed(BookingSuccessful $event, $exception): void
+    {
+        Log::critical("Gửi email xác nhận đặt chỗ thất bại cho Booking ID: " . $event->booking->id);
+        Log::critical("- lỗi hệ thống: " . $exception->getMessage());
+    }
+}
+```
 
 ## File: app/Http/Controllers/Auth/AuthenticatedSessionController.php
 ```php
@@ -594,6 +697,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Slot;
 use App\Services\BookingService;
+use App\Events\BookingSuccessful;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -628,8 +732,9 @@ class SlotController extends Controller
         }
 
         try {
-            $this->bookingService->handleBooking(auth()->id(), $slotId);
+            $booking = $this->bookingService->handleBooking(auth()->id(), $slotId);
 
+            event(new BookingSuccessful($booking));
             Cache::forget('all_slots_cache');
 
             return redirect()->route('slots.index')->with('success', 'Đặt vé thành công');
@@ -1027,8 +1132,8 @@ class BookingService {
 
             $finalPrice = max(0, $slot->price - $discountAmount);
 
-            if ($user->balance < $slot->price) {
-                throw new Exception('Số dư không đủ.');
+            if ($user->balance < $finalPrice) {
+                throw new Exception('Số dư không đủ để thanh toán suất này.');
             }
 
             $user->decrement('balance', $finalPrice);
